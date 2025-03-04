@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
+use warp::http::Method;
 use warp::{ws::Message, Filter, Rejection};
 
 mod handler;
@@ -62,13 +63,34 @@ async fn main() {
         .and(warp::any().map(move || clients_for_remove.clone()))
         .and_then(remove_topic);
 
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec![
+            "Access-Control-Allow-Headers",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers",
+            "Origin",
+            "Accept",
+            "X-Requested-With",
+            "Content-Type",
+        ])
+        .allow_methods(&[
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+            Method::HEAD,
+        ]);
+
     let routes = health_route
         .or(register_routes)
         .or(ws_route)
         .or(publish)
         .or(add_topic_route)
         .or(remove_topic_route)
-        .with(warp::cors().allow_any_origin());
+        .with(cors);
 
     warp::serve(routes).run(([127, 0, 0, 1], 8000)).await;
 }

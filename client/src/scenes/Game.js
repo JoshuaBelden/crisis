@@ -5,19 +5,47 @@ export class Game extends Scene {
         super("Game")
     }
 
-    create() {
-        this.cameras.main.setBackgroundColor(0x00ff00)
-
-        this.add
-            .text(512, 384, "Crisis", {
-                fontFamily: "Arial Black",
-                fontSize: 38,
-                color: "#ffffff",
-                stroke: "#000000",
-                strokeThickness: 8,
-                align: "center",
+    async getWebSocketUrl() {
+        try {
+            const response = await fetch("http://localhost:8000/register", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ user_id: 7, topic: "game-state" }),
             })
-            .setOrigin(0.5)
+
+            if (!response.ok) {
+                throw new Error("Network response was not ok")
+            }
+
+            const data = await response.json()
+            return data.url
+        } catch (err) {
+            console.error("Error:", err)
+        }
+    }
+
+    async create() {
+        this.cameras.main.setBackgroundColor(0x00)
+        const ship = this.add.image(200, 200, "ship").setOrigin(0.5, 0.5)
+        
+        const serverUrl = await this.getWebSocketUrl()
+        const connection = new WebSocket(serverUrl)
+
+        connection.onopen = () => {
+            console.log("Connected to the server")
+        }
+
+        connection.onmessage = event => {
+            console.log("Message from server ", event.data)
+            const {x, y} = JSON.parse(event.data);
+            ship.setPosition(x, y);
+        }
+
+        connection.onerror = error => {
+            console.error("Error:", error)
+        }
 
         this.input.once("pointerdown", () => {
             this.scene.start("GameOver")

@@ -7,7 +7,10 @@ export class Preloader extends Scene {
 
     init() {}
 
-    preload() {}
+    preload() {
+        this.load.setPath('assets');
+        this.load.image("ship", "spaceShips_001.png")
+    }
 
     create() {
         this.scene.start("MainMenu")
