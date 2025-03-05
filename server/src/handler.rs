@@ -2,15 +2,15 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{http::StatusCode, reply::json, Rejection, Reply};
 
-use crate::socket::{broadcast_message, receive_connection};
+use crate::socket::{broadcast_debug_message, receive_connection};
 use crate::{Client, Clients};
 
 pub type Result<T> = std::result::Result<T, Rejection>;
 
 #[derive(Deserialize, Debug)]
 pub struct RegisterRequest {
-    user_id: usize,
-    topic: String,
+    player_id: String,
+    subscribed_topics: Vec<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -19,20 +19,20 @@ struct RegisterResponse {
 }
 
 pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply> {
-    let user_id = body.user_id;
-    let topic = body.topic;
-    let uuid = Uuid::new_v4().as_simple().to_string();
+    let player_id = body.player_id;
+    let topics = body.subscribed_topics;
+    let new_client_key = Uuid::new_v4().as_simple().to_string();
+    register_client(new_client_key.clone(), player_id, topics, clients).await;
 
-    register_client(uuid.clone(), user_id, topic, clients).await;
     Ok(json(&RegisterResponse {
-        url: format!("ws://127.0.0.1:8000/ws/{}", uuid),
+        url: format!("ws://127.0.0.1:8000/ws/{}", new_client_key),
     }))
 }
 
-pub async fn socket_handler(ws: warp::ws::Ws, id: String, clients: Clients) -> Result<impl Reply> {
-    let client = clients.read().await.get(&id).cloned();
+pub async fn socket_handler(ws: warp::ws::Ws, client_key: String, clients: Clients) -> Result<impl Reply> {
+    let client = clients.read().await.get(&client_key).cloned();
     match client {
-        Some(c) => Ok(ws.on_upgrade(move |socket| receive_connection(socket, id, clients, c))),
+        Some(c) => Ok(ws.on_upgrade(move |socket| receive_connection(socket, client_key, clients, c))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -41,15 +41,15 @@ pub async fn health_handler() -> Result<impl Reply> {
     Ok(StatusCode::OK)
 }
 
-async fn register_client(id: String, user_id: usize, topic: String, clients: Clients) {
+async fn register_client(client_key: String, player_id: String, topics: Vec<String>, clients: Clients) {
     clients.write().await.insert(
-        id,
+        client_key,
         Client {
-            user_id,
-            topics: vec![topic],
+            player_id,
+            topics: topics,
             sender: None,
         },
     );
 
-    broadcast_message(&clients, "A new client was registered").await;
+    broadcast_debug_message(&clients, "A new client was registered").await;
 }

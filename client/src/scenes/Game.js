@@ -12,7 +12,7 @@ export class Game extends Scene {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ user_id: 7, topic: "game-state" }),
+                body: JSON.stringify({ player_id: 7, topic: "game-state" }),
             })
 
             if (!response.ok) {

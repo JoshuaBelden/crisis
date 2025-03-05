@@ -10,15 +10,15 @@ use warp::{ws::Message, Rejection};
 
 use handler::{health_handler, register_handler, socket_handler};
 
-pub type Clients = Arc<RwLock<HashMap<String, Client>>>;
-pub type Result<T> = std::result::Result<T, Rejection>;
-
 #[derive(Debug, Clone)]
 pub struct Client {
-    pub user_id: usize,
+    pub player_id: String,
     pub topics: Vec<String>,
     pub sender: Option<mpsc::UnboundedSender<std::result::Result<Message, warp::Error>>>,
 }
+
+pub type Clients = Arc<RwLock<HashMap<String, Client>>>;
+pub type Result<T> = std::result::Result<T, Rejection>;
 
 fn with_clients(clients: Clients) -> impl Filter<Extract = (Clients,), Error = Infallible> + Clone {
     warp::any().map(move || clients.clone())
