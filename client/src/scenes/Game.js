@@ -47,6 +47,8 @@ export class Game extends Scene {
             console.error("Error:", error)
         }
 
+        connection.send(JSON.stringify({ x: 200, y: 200 }))
+
         this.input.once("pointerdown", () => {
             this.scene.start("GameOver")
         })

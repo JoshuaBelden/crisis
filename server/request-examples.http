@@ -1,0 +1,12 @@
+curl -X POST 'http://localhost:8000/register' -H 'Content-Type: application/json' -d '{ "user_id": 1, "topic":"world-event" }'
+curl -X POST 'http://localhost:8000/register' -H 'Content-Type: application/json' -d '{ "user_id": 2, "topic":"world-event" }'
+curl -X POST 'http://localhost:8000/register' -H 'Content-Type: application/json' -d '{ "user_id": 3, "topic":"debug" }'
+
+websocat -t ws://127.0.0.1:8000/ws/252726a600624bda83aaa75d6f5d7e5a
+
+curl -X POST 'http://localhost:8000/publish' -H 'Content-Type: application/json' 
+-d '{ 
+  "topic": "world-event", 
+  "game_command": {       
+    \"CreateUnit\": {     
+      \"unit_id\": 700,\"position\": [10,20]}}}'
