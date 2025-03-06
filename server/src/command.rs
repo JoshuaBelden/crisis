@@ -21,6 +21,13 @@ pub enum GameCommand {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct GameCommandRequest {
+    player_id: String,
+    game_command: GameCommand,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub enum WorldEvent {
     PlayerJoined,
     PlayerLeft,
@@ -34,13 +41,6 @@ pub enum WorldEvent {
         unit_id: String,
         position: (i32, i32),
     },
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct GameCommandRequest {
-    player_id: String,
-    game_command: GameCommand,
 }
 
 #[derive(Serialize, Debug)]

@@ -2,20 +2,20 @@ import { Scene } from "phaser"
 import { v4 as uuidv4 } from "uuid"
 
 export class Game extends Scene {
+    UNIT_SPEED = 200
+
     constructor() {
         super("Game")
         this.connection = null
         this.playerId = uuidv4()
-        this.ship = null
-        this.destination = null
-        this.speed = 200
+        this.ships = []
     }
 
     async getWebSocketUrl() {
         try {
             const payload = {
                 playerId: this.playerId,
-                topics: ["world-events"],
+                topics: ["debug", "world-events"],
             }
             const response = await fetch("http://localhost:8000/register", {
                 method: "POST",
@@ -36,25 +36,25 @@ export class Game extends Scene {
         }
     }
 
-    sendCreateUnit() {
+    sendCreateUnit(initialPosition) {
         const gameCommandRequest = {
             playerId: this.playerId,
             gameCommand: {
                 createUnit: {
                     unitId: uuidv4(),
-                    position: [200, 200],
+                    position: initialPosition,
                 },
             },
         }
         this.connection.send(JSON.stringify(gameCommandRequest))
     }
 
-    sendMoveUnit(x, y) {
+    sendMoveUnit(unitId, x, y) {
         const gameCommandRequest = {
             playerId: this.playerId,
             gameCommand: {
                 moveUnit: {
-                    unitId: uuidv4(),
+                    unitId: unitId,
                     position: [x, y],
                 },
             },
@@ -62,19 +62,37 @@ export class Game extends Scene {
         this.connection.send(JSON.stringify(gameCommandRequest))
     }
 
-    receiveMessage(data) {
-        const worldEventResponse = JSON.parse(data)
-        if (worldEventResponse.worldEvent.unitCreated) {
-            const [x, y] = worldEventResponse.worldEvent.unitCreated.position
-            this.ship = this.add.image(x, y, "ship").setOrigin(0.5, 0.5)
-            return
-        }
+    createUnit(unitId, x, y) {
+        const ship = this.add.image(x, y, "ship").setOrigin(0.5, 0.5)
+        ship.setData("playerId", this.playerId)
+        ship.setData("unitId", unitId)
+        this.ships.push(ship)
+    }
 
-        if (worldEventResponse.worldEvent.unitMoved) {
-            const [x, y] = worldEventResponse.worldEvent.unitMoved.position
-            this.destination = { x, y }
-            return
-        }
+    moveUnit(unitId, x, y) {
+        const ship = this.ships.find(ship => ship.getData("unitId") === unitId)
+        ship.setData("destination", { x, y })
+    }
+
+    receiveMessage(data) {
+        console.debug("Received message:", data)
+        
+        try {
+            const worldEventResponse = JSON.parse(data)
+            const eventType = Object.keys(worldEventResponse.worldEvent)[0]
+            const eventData = worldEventResponse.worldEvent[eventType]
+            switch (eventType) {
+                case "unitCreated":
+                    const [x, y] = eventData.position
+                    this.createUnit(eventData.unitId, x, y)
+                    break
+
+                case "unitMoved":
+                    const [moveX, moveY] = eventData.position
+                    this.moveUnit(eventData.unitId, moveX, moveY)
+                    break
+            }
+        } catch (err) {}
     }
 
     async create() {
@@ -83,7 +101,11 @@ export class Game extends Scene {
         const serverUrl = await this.getWebSocketUrl()
         this.connection = new WebSocket(serverUrl)
         this.connection.onopen = () => {
-            this.sendCreateUnit()
+            const initialRandomPosition = [
+                Math.floor(Math.random() * this.game.canvas.clientWidth),
+                Math.floor(Math.random() * this.game.canvas.clientHeight),
+            ]
+            this.sendCreateUnit(initialRandomPosition)
         }
 
         this.connection.onmessage = event => {
@@ -95,34 +117,49 @@ export class Game extends Scene {
         }
 
         this.input.on("pointerdown", pointer => {
+            const myShipId = this.ships
+                .find(ship => ship.getData("playerId") === this.playerId)
+                .getData("unitId")
             const x = pointer.x
             const y = pointer.y
-            this.sendMoveUnit(x, y)
+            this.sendMoveUnit(myShipId, x, y)
         })
     }
 
     async update() {
-        if (!this.ship || !this.destination) {
+        if (!this.ships.length) {
             return
         }
 
-        const distance = Phaser.Math.Distance.Between(
-            this.ship.x,
-            this.ship.y,
-            this.destination.x,
-            this.destination.y
-        )
-        const duration = (distance / this.speed) * 1000 // duration in milliseconds
+        this.ships.forEach(ship => {
+            const destination = ship.getData("destination")
+            if (!destination) {
+                return
+            }
 
-        if (distance > 1) {
-            this.tweens.add({
-                targets: this.ship,
-                x: this.destination.x,
-                y: this.destination.y,
-                duration: duration,
-                ease: "Linear",
-            })
-            this.destination = null // Clear the destination after starting the tween
-        }
+            const distance = Phaser.Math.Distance.Between(
+                ship.x,
+                ship.y,
+                destination.x,
+                destination.y
+            )
+
+            if (distance < 1) {
+                ship.setData("destination", null)
+                return
+            }
+            const duration = (distance / this.UNIT_SPEED) * 1000 // duration in milliseconds
+
+            if (distance > 1) {
+                this.tweens.add({
+                    targets: ship,
+                    x: destination.x,
+                    y: destination.y,
+                    duration: duration,
+                    ease: "Linear",
+                })
+                ship.setData("destination", null)
+            }
+        })
     }
 }
