@@ -15,7 +15,7 @@ pub enum GameCommand {
     #[serde(rename_all = "camelCase")]
     MoveUnit {
         unit_id: String,
-        destination: (i32, i32),
+        position: (i32, i32),
     },
 }
 
@@ -32,7 +32,7 @@ pub enum WorldEvent {
     #[serde(rename_all = "camelCase")]
     UnitMoved {
         unit_id: String,
-        destination: (i32, i32),
+        position: (i32, i32),
     },
 }
 
@@ -66,9 +66,19 @@ pub async fn handle_game_command(game_command_request: GameCommandRequest, clien
         }
         GameCommand::MoveUnit {
             unit_id,
-            destination,
+            position,
         } => {
-            println!("Moving unit {} to {:?}", unit_id, destination);
+            println!("Moving unit {} to {:?}", unit_id, position);
+
+            let world_event_response = WorldEventResponse {
+                player_id: game_command_request.player_id,
+                world_event: WorldEvent::UnitMoved {
+                    unit_id,
+                    position: position,
+                },
+            };
+            let world_event_response_str = to_string(&world_event_response).unwrap();
+            broadcast_message(clients, "world-events", &world_event_response_str).await;
         }
     }
     // after a game update, broadcast the update to all users
