@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{http::StatusCode, reply::json, Rejection, Reply};
 
+use crate::command::WorldEntities;
 use crate::socket::{broadcast_debug_message, receive_connection};
 use crate::{Client, Clients};
 
@@ -35,11 +36,12 @@ pub async fn socket_handler(
     ws: warp::ws::Ws,
     client_key: String,
     clients: Clients,
+    entities: WorldEntities,
 ) -> Result<impl Reply> {
     let client = clients.read().await.get(&client_key).cloned();
     match client {
-        Some(c) => {
-            Ok(ws.on_upgrade(move |socket| receive_connection(socket, client_key, clients, c)))
+        Some(client) => {
+            Ok(ws.on_upgrade(move |socket| receive_connection(socket, client_key, clients, client, entities)))
         }
         None => Err(warp::reject::not_found()),
     }

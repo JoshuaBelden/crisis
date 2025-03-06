@@ -10,6 +10,7 @@ use warp::http::Method;
 use warp::Filter;
 use warp::{ws::Message, Rejection};
 
+use command::WorldEntities;
 use handler::{health_handler, register_handler, socket_handler};
 
 #[derive(Debug, Clone)]
@@ -26,9 +27,18 @@ fn with_clients(clients: Clients) -> impl Filter<Extract = (Clients,), Error = I
     warp::any().map(move || clients.clone())
 }
 
+fn with_entities(
+    entities: WorldEntities,
+) -> impl Filter<Extract = (WorldEntities,), Error = Infallible> + Clone {
+    warp::any().map(move || entities.clone())
+}
+
 #[tokio::main]
 async fn main() {
     let clients: Clients = Arc::new(RwLock::new(HashMap::new()));
+
+    // Entities store world entities in a hash by the client key
+    let entities: WorldEntities = Arc::new(RwLock::new(HashMap::new()));
 
     let health_route = warp::path!("health").and_then(health_handler);
 
@@ -42,6 +52,7 @@ async fn main() {
         .and(warp::ws())
         .and(warp::path::param())
         .and(with_clients(clients.clone()))
+        .and(with_entities(entities.clone()))
         .and_then(socket_handler);
 
     let routes = health_route.or(register_routes).or(ws_route).with(

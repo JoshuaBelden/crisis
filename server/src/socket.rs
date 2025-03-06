@@ -3,14 +3,15 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::{ws::Message, ws::WebSocket};
 
-use crate::command::{handle_game_command, GameCommandRequest};
-use crate::{Client, Clients};
+use crate::command::{handle_world_command, WorldCommandRequest};
+use crate::{Client, Clients, WorldEntities};
 
 pub async fn receive_connection(
     ws: WebSocket,
     client_key: String,
     clients: Clients,
     mut client: Client,
+    entities: WorldEntities,
 ) {
     let (client_ws_sender, mut client_ws_rcv) = ws.split();
     let (client_sender, client_rcv) = mpsc::unbounded_channel();
@@ -35,21 +36,23 @@ pub async fn receive_connection(
                 break;
             }
         };
-        receive_message(&client_key, message, &clients).await;
+        receive_message(&client_key, message, &clients, &entities).await;
     }
 
     clients.write().await.remove(&client_key);
+    entities.write().await.retain(|k, _| k != &client_key);
+
     println!("{} disconnected", client_key);
 }
 
-async fn receive_message(client_key: &str, message: Message, clients: &Clients) {
+async fn receive_message(client_key: &str, message: Message, clients: &Clients, entities: &WorldEntities) {
     println!("received message from {}: {:?}", client_key, message);
     let message = match message.to_str() {
         Ok(v) => v,
         Err(_) => return,
     };
 
-    let game_command_request: GameCommandRequest = match serde_json::from_str(&message) {
+    let world_command_request: WorldCommandRequest = match serde_json::from_str(&message) {
         Ok(req) => req,
         Err(e) => {
             eprint!("error while parsing game command message: {}", e);
@@ -57,7 +60,7 @@ async fn receive_message(client_key: &str, message: Message, clients: &Clients) 
         }
     };
 
-    handle_game_command(game_command_request, clients).await;
+    handle_world_command(world_command_request, clients, client_key, entities).await;
 }
 
 pub async fn broadcast_message(clients: &Clients, topic: &str, message: &str) {
