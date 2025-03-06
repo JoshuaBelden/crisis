@@ -5,6 +5,8 @@ mod socket;
 use std::sync::Arc;
 use std::{collections::HashMap, convert::Infallible};
 use tokio::sync::{mpsc, RwLock};
+use warp::http::header::CONTENT_TYPE;
+use warp::http::Method;
 use warp::Filter;
 use warp::{ws::Message, Rejection};
 
@@ -42,10 +44,12 @@ async fn main() {
         .and(with_clients(clients.clone()))
         .and_then(socket_handler);
 
-    let routes = health_route
-        .or(register_routes)
-        .or(ws_route)
-        .with(warp::cors().allow_any_origin());
+    let routes = health_route.or(register_routes).or(ws_route).with(
+        warp::cors()
+            .allow_headers([CONTENT_TYPE])
+            .allow_methods([Method::GET, Method::POST])
+            .allow_any_origin(),
+    );
 
     warp::serve(routes).run(([127, 0, 0, 1], 8000)).await;
 }

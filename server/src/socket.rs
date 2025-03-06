@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::{ws::Message, ws::WebSocket};
 
-use crate::command::{handle_game_command, GameCommand};
+use crate::command::{handle_game_command, GameCommandRequest};
 use crate::{Client, Clients};
 
 pub async fn receive_connection(
@@ -35,21 +35,21 @@ pub async fn receive_connection(
                 break;
             }
         };
-        receive_message(&client_key, message).await;
+        receive_message(&client_key, message, &clients).await;
     }
 
     clients.write().await.remove(&client_key);
     println!("{} disconnected", client_key);
 }
 
-async fn receive_message(id: &str, message: Message) {
-    println!("received message from {}: {:?}", id, message);
+async fn receive_message(client_key: &str, message: Message, clients: &Clients) {
+    println!("received message from {}: {:?}", client_key, message);
     let message = match message.to_str() {
         Ok(v) => v,
         Err(_) => return,
     };
 
-    let game_command: GameCommand = match serde_json::from_str(&message) {
+    let game_command_request: GameCommandRequest = match serde_json::from_str(&message) {
         Ok(req) => req,
         Err(e) => {
             eprint!("error while parsing game command message: {}", e);
@@ -57,7 +57,7 @@ async fn receive_message(id: &str, message: Message) {
         }
     };
 
-    handle_game_command(game_command).await;
+    handle_game_command(game_command_request, clients).await;
 }
 
 pub async fn broadcast_message(clients: &Clients, topic: &str, message: &str) {
